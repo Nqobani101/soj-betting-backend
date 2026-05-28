@@ -13,7 +13,10 @@ app = FastAPI()
 # --- CORS SECURITY CLEARANCE ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], 
+    allow_origins=[
+        "http://localhost:5173",
+        "https://soj-betting-frontend.vercel.app" # <-- THE VERCEL VIP PASS
+    ], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -111,6 +114,7 @@ def update_code_status(code_id: str, new_status: str, db: Session = Depends(get_
     db.commit()
     db.refresh(code)
     return {"message": f"Code status updated to {code.status}", "tipster_stats_updated": True}
+
 # --- FINANCIAL ENGINE (WEBHOOKS) ---
 @app.post("/webhook/payfast")
 def payfast_webhook(payment_data: schemas.PaymentWebhook, db: Session = Depends(get_db)):
