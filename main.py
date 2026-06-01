@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import models, schemas
@@ -117,21 +117,27 @@ def update_code_status(code_id: str, new_status: str, db: Session = Depends(get_
 
 # --- FINANCIAL ENGINE (WEBHOOKS) ---
 @app.post("/webhook/payfast")
-def payfast_webhook(payment_data: schemas.PaymentWebhook, db: Session = Depends(get_db)):
-    # 1. Check if the payment actually cleared the bank
-    if payment_data.status.upper() != "COMPLETE":
+async def payfast_webhook(request: Request, db: Session = Depends(get_db)):
+    # 1. Catch the raw Form Data from PayFast
+    form_data = await request.form()
+    
+    # 2. Extract the exact payment status and our custom string ID
+    payment_status = form_data.get("payment_status")
+    user_id = form_data.get("custom_str1") # <-- THE NEW KEY WE ADDED TO THE FRONTEND
+    
+    # 3. Security Check: Did the money actually clear?
+    if payment_status != "COMPLETE":
         return {"message": "Payment not complete. No upgrade given."}
     
-    # 2. Find the user who just paid
-    user = db.query(models.User).filter(models.User.id == payment_data.user_id).first()
+    # 4. Find the user in the database using the UUID
+    user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found in vault")
     
-    # 3. AUTOMATE THE CROWN 👑
+    # 5. AUTOMATE THE CROWN 👑
     user.is_premium = True
     
-    # 4. Save the upgraded status to the vault
+    # 6. Save and lock the vault
     db.commit()
-    db.refresh(user)
     
     return {"message": "Payment successful. User upgraded to Premium!"}
