@@ -118,26 +118,36 @@ def update_code_status(code_id: str, new_status: str, db: Session = Depends(get_
 # --- FINANCIAL ENGINE (WEBHOOKS) ---
 @app.post("/webhook/payfast")
 async def payfast_webhook(request: Request, db: Session = Depends(get_db)):
-    # 1. Catch the raw Form Data from PayFast
-    form_data = await request.form()
-    
-    # 2. Extract the exact payment status and our custom string ID
-    payment_status = form_data.get("payment_status")
-    user_id = form_data.get("custom_str1") # <-- THE NEW KEY WE ADDED TO THE FRONTEND
-    
-    # 3. Security Check: Did the money actually clear?
-    if payment_status != "COMPLETE":
-        return {"message": "Payment not complete. No upgrade given."}
-    
-    # 4. Find the user in the database using the UUID
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found in vault")
-    
-    # 5. AUTOMATE THE CROWN 👑
-    user.is_premium = True
-    
-    # 6. Save and lock the vault
-    db.commit()
-    
-    return {"message": "Payment successful. User upgraded to Premium!"}
+    print("🚨 PAYFAST WEBHOOK PING RECEIVED 🚨")
+    try:
+        # Catch the raw Form Data
+        form_data = await request.form()
+        print(f"📦 RAW DATA RECEIVED: {form_data}")
+        
+        # Extract the data
+        payment_status = form_data.get("payment_status")
+        user_id = form_data.get("custom_str1") 
+        
+        print(f"💳 STATUS: {payment_status} | USER ID: {user_id}")
+        
+        # Security Check
+        if payment_status != "COMPLETE":
+            print("❌ PAYMENT NOT COMPLETE. ABORTING UPGRADE.")
+            return {"message": "Payment not complete."}
+        
+        # Find the user
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            print("❌ USER NOT FOUND IN DATABASE.")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # AUTOMATE THE CROWN 👑
+        user.is_premium = True
+        db.commit()
+        
+        print("✅ UPGRADE SUCCESSFUL. CROWN GRANTED.")
+        return {"message": "Payment successful. User upgraded to Premium!"}
+        
+    except Exception as e:
+        print(f"🔥 CRITICAL WEBHOOK ERROR: {str(e)}")
+        return {"error": str(e)}
